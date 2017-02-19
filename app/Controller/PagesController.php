@@ -35,7 +35,7 @@ class PagesController extends AppController {
  *
  * @var array
  */
-	public $uses = array();
+	public $uses = array('Product','User');
 
 /**
  * Displays a view
@@ -45,36 +45,121 @@ class PagesController extends AppController {
  * @throws NotFoundException When the view file could not be found
  *   or MissingViewException in debug mode.
  */
-	public function display() {
-		$path = func_get_args();
+	function index(){
+		
+	}
+	function addNew(){
+        $this->autoRender = false;
 
-		$count = count($path);
-		if (!$count) {
-			return $this->redirect('/');
-		}
-		if (in_array('..', $path, true) || in_array('.', $path, true)) {
-			throw new ForbiddenException();
-		}
-		$page = $subpage = $title_for_layout = null;
+        if (!empty($this->data['upload']['name'])) {
+            $file = $this->data['upload'];
 
-		if (!empty($path[0])) {
-			$page = $path[0];
-		}
-		if (!empty($path[1])) {
-			$subpage = $path[1];
-		}
-		if (!empty($path[$count - 1])) {
-			$title_for_layout = Inflector::humanize($path[$count - 1]);
-		}
-		$this->set(compact('page', 'subpage', 'title_for_layout'));
+            $ext = substr(strtolower(strrchr($file['name'], '.')), 1);
+            $arr_ext = array('jpg', 'jpeg', 'gif','png');
 
-		try {
-			$this->render(implode('/', $path));
-		} catch (MissingViewException $e) {
-			if (Configure::read('debug')) {
-				throw $e;
+            if (in_array($ext, $arr_ext)) {
+                move_uploaded_file($file['tmp_name'], WWW_ROOT . 'img/webimages/categories/' . $file['name']);
+                //prepare the filename for database entry
+                $this->data['image'] = $file['name'];
+            }
+        }
+	    if($this->data){
+	        if($this->data){
+	            if($this->Product->save($this->data)){
+	                return "Saved Successfully";
+	            } else {
+	                return "Error ocur while saving the data please try again";
+	            }
+	        } else {
+	            return "Nothig saved";
+	        }
+	    }
+	}
+	function logins() {
+		$this->autoRender = false;
+	    $this->layout = "";
+		$login_detail = $this->User->find('first', array( 'conditions' => array('email' => $this->data['email'],'is_admin' =>1)));
+
+		if(empty($login_detail)) {
+			$this->Session->setFlash('<h3 class="text-danger">Please enter correct login or password</h3>');
+			$this->redirect( array( 'controller' => 'pages', 'action' => 'index' ) );
+		} else {
+			if($login_detail['User']['email'] == $this->data['email'] && $login_detail['User']['password'] == md5($this->data['password'])) {
+				$data= $login_detail['User'];
+				$this->Session->write('User',$data);
+				$this->redirect( array( 'controller' => 'pages', 'action' => 'deshBoard' ) );
+			} else {
+				$this->Session->setFlash('<h3 class="text-danger">Please enter correct login or password</h3>');
+				$this->redirect( array( 'controller' => 'pages', 'action' => 'index' ) );
 			}
-			throw new NotFoundException();
 		}
 	}
+	function logout(){
+		$this->Session->delete('User');
+		$this->Session->destroy();
+		$this->redirect( '/' );
+	}
+	function deshBoard (){
+		$this->autoRender = false;
+	    $this->render('index');
+	}
+	function saveData(){
+		$this->autoRender = false;
+	    $this->layout = "";
+	    //print_r($this->request->data);die;
+		if ($this->data) {
+				$data = $this->data;
+			    $targetDir = '/images/';
+		       if (!empty($this->request->data['upload']['name'])) {
+		            $file = $this->request->data['upload'];
+
+		            $ext = substr(strtolower(strrchr($file['name'], '.')), 1);
+		            $arr_ext = array('jpg', 'jpeg', 'gif','png');
+
+		            if (in_array($ext, $arr_ext)) {
+		                move_uploaded_file($file['tmp_name'], WWW_ROOT . 'images/' . $file['name']);
+		                //prepare the filename for database entry
+		                $this->request->data['image'] = $file['name'];
+		            }
+		        }
+			if ($this->Product->save($data)) {
+				$this->Session->setFlash('<h3 class="text-success">Saved succefully</h3>');
+			} else {
+				$this->Session->setFlash('<h3 class="text-danger">Something went wrong try again latter</h3>');
+			}
+		}
+		$this->redirect( array( 'controller' => 'pages', 'action' => 'index' ) );
+	}
+	function productList(){
+		$userData =$this->Session->read('User');
+		if (empty($userData['id']) ) {
+			$this->Session->setFlash('<h3 class="text-danger">Please login first</h3>');
+			$this->redirect( array( 'controller' => 'pages', 'action' => 'index' ) );
+		}
+        if ($maxPageNumber > $temMax) {
+            $maxPageNumber = $temMax + 1;
+        }
+        $this->set('maxPageNumber', $maxPageNumber);
+        $this->set('start', $tempSeq);
+        $this->set('linkdata', $data);
+        if( !empty($this->params['url']['page'] )) {
+            $filt = $this->params['url']['page'];
+        } 
+        $result =  $this->Product->find('all', array('conditions' => array('Product.is_active' =>1,'Product.status' =>1 ,'Product.name LIKE' =>"$filt%")));
+        $this->set('NameArray', $result);
+    }
+    function deleteProduct($id){
+    	$this->autoRender = false;
+	    $this->layout = "";
+	    if (!empty($id)) {
+	    	if ($this->Product->updateAll(array('is_active' => 0,'status' => 0), array('id' => $id))) {
+	    		return true;
+	    	} else {
+	    		return false;
+	    	}
+	    } else {
+	    	return false;
+	    }
+    	exit;
+    }
 }
